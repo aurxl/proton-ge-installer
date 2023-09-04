@@ -32,6 +32,7 @@ var (
 	user_home  string
 	dwl_index  int
 	csm_index  int
+	err        error
 )
 
 type releaseInfos struct {
@@ -177,7 +178,7 @@ func init() {
 	log.SetPrefix("Proton GE Installer: ")
 	log.SetFlags(0)
 
-	user_home, err := os.UserHomeDir()
+	user_home, err = os.UserHomeDir()
 	if err != nil {
 		log.Fatal(err)
 	}
