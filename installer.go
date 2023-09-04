@@ -185,8 +185,8 @@ func init() {
 
 	flag.StringVar(&version, "version", "latest", versionUsage)
 	flag.StringVar(&version, "v", "latest", versionUsage+" - shorthand")
-	flag.StringVar(&steam_root, "steam_dir", user_home+"/.steam/root/", steam_rootUsage)
-	flag.StringVar(&steam_root, "d", user_home+"/.steam/root/", steam_rootUsage+" - shorthand")
+	flag.StringVar(&steam_root, "steam_dir", user_home+"/.steam/", steam_rootUsage)
+	flag.StringVar(&steam_root, "d", user_home+"/.steam/", steam_rootUsage+" - shorthand")
 
 	flag.Parse()
 
@@ -216,7 +216,7 @@ func main() {
 	*/
 
 	//cd to temp dir
-	err = os.Chdir(steam_root + "compatibilitytools.d")
+	err = os.Chdir(steam_root + "root/compatibilitytools.d")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func main() {
 	}
 
 	// Create dir compatabilitytools.d
-	err = os.Mkdir(steam_root+"compatibilitytools.d", 0755)
+	err = os.Mkdir(steam_root+"root/compatibilitytools.d", 0755)
 	if err != nil {
 		log.Println(err)
 	}
