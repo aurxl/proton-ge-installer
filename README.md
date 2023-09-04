@@ -7,16 +7,19 @@
 ``` sh
 proton-ge-installer
 ```
-
+``` sh
+proton-ge-installer latest
+```
 ### installing specific version
 ``` sh
 proton-ge-installer -v 8-14
 ```
-or
 ``` sh
 proton-ge-installer -v GE-Proton8-14
 ```
-
+``` sh
+proton-ge-installer GE-Proton8-14
+```
 ### installing to special steam dir
 ``` sh
 proton-ge-installer -v GE-Proton8-14 -d /home/neo/.steam
