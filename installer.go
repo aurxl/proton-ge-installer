@@ -3,6 +3,8 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"crypto/sha512"
 	"encoding/json"
 	"errors"
@@ -127,6 +129,50 @@ func calcSHA512Sum(filename string) (string, error) {
 	return fmt.Sprintf("%x", hashInBytes), nil
 }
 
+func unpackTarGz(filename string) error {
+	gzipStream, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+
+	uncompressedStream, err := gzip.NewReader(gzipStream)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Extract archive")
+	// https://codereview.stackexchange.com/a/272554
+	tarReader := tar.NewReader(uncompressedStream)
+	var header *tar.Header
+	for header, err = tarReader.Next(); err == nil; header, err = tarReader.Next() {
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.Mkdir(header.Name, 0755); err != nil {
+				return err
+			}
+		default:
+			outFile, err := os.Create(header.Name)
+			if err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return err
+			}
+			if err := outFile.Close(); err != nil {
+				return err
+			}
+			//default:
+			//	return  fmt.Errorf("ExtractTarGz: uknown type: %b in %s", header.Typeflag, header.Name)
+		}
+	}
+	if err != io.EOF {
+		return err
+	}
+	return nil
+}
+
 func init() {
 	log.SetPrefix("Proton GE Installer: ")
 	log.SetFlags(0)
@@ -166,14 +212,14 @@ func main() {
 		} else {
 			log.Printf("created dir: %s", tmp_dir)
 		}
-
-		//cd to temp dir
-
-				err = os.Chdir(tmp_dir)
-					if err != nil {
-						log.Fatal(err)
-					}
 	*/
+
+	//cd to temp dir
+	err = os.Chdir(steam_root + "compatibilitytools.d")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for i, url := range urls.Assets {
 		if !strings.HasSuffix(url.Name, "sha512sum") {
 			dwl_index = i
@@ -183,12 +229,13 @@ func main() {
 	}
 
 	// download tarball
-	_, err = downloadRelease(urls.Assets[dwl_index].Name, urls.Assets[dwl_index].Browser_download_url)
+	downloadedFile, err := downloadRelease(urls.Assets[dwl_index].Name, urls.Assets[dwl_index].Browser_download_url)
 	if err != nil {
 		log.Fatal(err)
 	} else {
 		log.Printf("Successfully downloaded %s", urls.Assets[dwl_index].Name)
 	}
+	defer os.Remove(downloadedFile)
 
 	// get checksum
 	tarsumBefore, err := getSHA512SumFromUrl(urls.Assets[csm_index].Name, urls.Assets[dwl_index].Name, urls.Assets[csm_index].Browser_download_url)
@@ -210,11 +257,16 @@ func main() {
 	}
 
 	// Create dir compatabilitytools.d
-	err = os.Mkdir(steam_root+"compatabilitytools.d", 0755)
+	err = os.Mkdir(steam_root+"compatibilitytools.d", 0755)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// extract tar ball
+	err = unpackTarGz(urls.Assets[dwl_index].Name)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// extract tar ball
-
+	log.Println("Done!")
 }
