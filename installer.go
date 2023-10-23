@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -36,8 +37,9 @@ var (
 )
 
 type releaseInfos struct {
-	Url    string
-	Assets []struct {
+	Url      string
+	Tag_name string
+	Assets   []struct {
 		Name                 string
 		Browser_download_url string
 	}
@@ -74,12 +76,32 @@ func getValidRelease(version string) (string, *releaseInfos, error) {
 	}
 }
 
+func killProgressDots(kill chan bool) {
+	kill <- true
+}
+
 func downloadRelease(name string, url string) (string, error) {
 	out, err := os.Create(name)
 	if err != nil {
 		return "", err
 	}
 	defer out.Close()
+
+	kill := make(chan bool)
+	go func() {
+		fmt.Printf("downloading ")
+		for {
+			select {
+			case <-kill:
+				fmt.Println(". finished")
+				return
+			default:
+				fmt.Print(".")
+				time.Sleep(1000 * time.Millisecond)
+			}
+		}
+	}()
+	defer killProgressDots(kill)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -95,6 +117,7 @@ func downloadRelease(name string, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return name, nil
 }
 
@@ -152,20 +175,17 @@ func unpackTarGz(filename string) error {
 				return err
 			}
 		default:
-			outFile, err := os.Create(header.Name)
+			file, err := os.Create(header.Name)
 			if err != nil {
 				return err
 			}
-
-			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
+			if _, err := io.Copy(file, tarReader); err != nil {
+				file.Close()
 				return err
 			}
-			if err := outFile.Close(); err != nil {
+			if err := file.Close(); err != nil {
 				return err
 			}
-			//default:
-			//	return  fmt.Errorf("ExtractTarGz: uknown type: %b in %s", header.Typeflag, header.Name)
 		}
 	}
 	if err != io.EOF {
@@ -205,22 +225,23 @@ func main() {
 		log.Printf("found release: %s", validVersion)
 	}
 
-	/*
-		// createing temp dir /tmp/proton-ge-custom
-		tmp_dir, err := os.MkdirTemp("", "proton-ge-custom")
-		if err != nil {
-			log.Fatal(err)
-		} else {
-			log.Printf("created dir: %s", tmp_dir)
-		}
-	*/
+	// check if file already exists
+	filePath := steam_root + "root/compatibilitytools.d/" + urls.Tag_name
+	_, err = os.Stat(filePath)
+	if err == nil {
+		log.Printf("%s already is installed under %s", validVersion, filePath)
+		os.Exit(0)
+	} else if !os.IsNotExist(err) {
+		log.Fatal(err)
+	}
 
-	//cd to temp dir
+	// cd to install dir
 	err = os.Chdir(steam_root + "root/compatibilitytools.d")
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// searching indices
 	for i, url := range urls.Assets {
 		if !strings.HasSuffix(url.Name, "sha512sum") {
 			dwl_index = i
@@ -259,7 +280,7 @@ func main() {
 
 	// Create dir compatabilitytools.d
 	err = os.Mkdir(steam_root+"root/compatibilitytools.d", 0755)
-	if err != nil {
+	if !os.IsExist(err) {
 		log.Println(err)
 	}
 
