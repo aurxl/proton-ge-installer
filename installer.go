@@ -25,6 +25,7 @@ const (
 	GHtags          = "tags/"
 	versionUsage    = "GE Version (release) to install"
 	steam_rootUsage = "steam root dir"
+	forceUsage      = "force to override already exsiting install"
 )
 
 var (
@@ -33,6 +34,7 @@ var (
 	user_home  string
 	dwl_index  int
 	csm_index  int
+	force      bool
 	err        error
 )
 
@@ -207,6 +209,8 @@ func init() {
 	flag.StringVar(&version, "v", "latest", versionUsage+" - shorthand")
 	flag.StringVar(&steam_root, "steam_dir", user_home+"/.steam/", steam_rootUsage)
 	flag.StringVar(&steam_root, "d", user_home+"/.steam/", steam_rootUsage+" - shorthand")
+	flag.BoolVar(&force, "force", false, forceUsage)
+	flag.BoolVar(&force, "f", false, forceUsage+" - shorthand")
 
 	flag.Parse()
 
@@ -228,10 +232,16 @@ func main() {
 	// check if file already exists
 	filePath := steam_root + "root/compatibilitytools.d/" + urls.Tag_name
 	_, err = os.Stat(filePath)
-	if err == nil {
+	if err == nil && !force {
 		log.Printf("%s already is installed under %s", validVersion, filePath)
 		os.Exit(0)
-	} else if !os.IsNotExist(err) {
+	} else if !os.IsNotExist(err) && err != nil {
+		log.Fatal(err)
+	}
+
+	// delete file if force
+	err = os.RemoveAll(filePath)
+	if err != nil {
 		log.Fatal(err)
 	}
 
