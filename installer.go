@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -78,10 +79,6 @@ func getValidRelease(version string) (string, *releaseInfos, error) {
 	}
 }
 
-func killProgressDots(kill chan bool) {
-	kill <- true
-}
-
 func downloadRelease(name string, url string) (string, error) {
 	out, err := os.Create(name)
 	if err != nil {
@@ -103,7 +100,9 @@ func downloadRelease(name string, url string) (string, error) {
 			}
 		}
 	}()
-	defer killProgressDots(kill)
+	defer func() {
+		kill <- true
+	}()
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -156,6 +155,9 @@ func calcSHA512Sum(filename string) (string, error) {
 }
 
 func unpackTarGz(filename string) error {
+	var header *tar.Header
+	madeDir := map[string]bool{}
+
 	gzipStream, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -167,31 +169,60 @@ func unpackTarGz(filename string) error {
 	}
 
 	log.Println("Extract archive")
-	// https://codereview.stackexchange.com/a/272554
 	tarReader := tar.NewReader(uncompressedStream)
-	var header *tar.Header
 	for header, err = tarReader.Next(); err == nil; header, err = tarReader.Next() {
+		if err == io.EOF {
+			break
+		}
+		rel := filepath.FromSlash(header.Name)
+		abs := filepath.Join("", rel)
+
+		mode := header.FileInfo().Mode()
 		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.Mkdir(header.Name, 0755); err != nil {
-				return err
+		case tar.TypeReg:
+			// Make the directory. This is redundant because it should
+			// already be made by a directory entry in the tar
+			// beforehand. Thus, don't check for errors; the next
+			// write will fail with the same error.
+			dir := filepath.Dir(abs)
+			if !madeDir[dir] {
+				err := os.MkdirAll(filepath.Dir(abs), 0755)
+				if err != nil {
+					return err
+				}
+				madeDir[dir] = true
 			}
-		default:
-			file, err := os.Create(header.Name)
+			wf, err := os.OpenFile(abs, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(file, tarReader); err != nil {
-				file.Close()
+			n, err := io.Copy(wf, tarReader)
+			if closeErr := wf.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				return fmt.Errorf("error writing to %s: %v", abs, err)
+			}
+			if n != header.Size {
+				return fmt.Errorf("only wrote %d bytes to %s; expected %d", n, abs, header.Size)
+			}
+		case tar.TypeDir:
+			err := os.MkdirAll(abs, 0755)
+			if err != nil {
 				return err
 			}
-			if err := file.Close(); err != nil {
+			madeDir[abs] = true
+		case tar.TypeSymlink:
+			err := os.Symlink(header.Linkname, header.Name)
+			if err != nil {
 				return err
 			}
+
+		case tar.TypeXGlobalHeader:
+			// git archive generates these. Ignore them.
+		default:
+			return fmt.Errorf("tar file entry %s contained unsupported file type %v", header.Name, mode)
 		}
-	}
-	if err != io.EOF {
-		return err
 	}
 	return nil
 }
