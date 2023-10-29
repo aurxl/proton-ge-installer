@@ -26,7 +26,7 @@ const (
 	GHtags          = "tags/"
 	versionUsage    = "GE Version (release) to install"
 	steam_rootUsage = "steam root dir"
-	forceUsage      = "force to override already exsiting install"
+	forceUsage      = "force to override already existing install"
 )
 
 var (
@@ -171,28 +171,24 @@ func unpackTarGz(filename string) error {
 	log.Println("Extract archive")
 	tarReader := tar.NewReader(uncompressedStream)
 	for header, err = tarReader.Next(); err == nil; header, err = tarReader.Next() {
-		if err == io.EOF {
-			break
-		}
-		rel := filepath.FromSlash(header.Name)
-		abs := filepath.Join("", rel)
-
+		path := filepath.FromSlash(header.Name)
 		mode := header.FileInfo().Mode()
+
 		switch header.Typeflag {
 		case tar.TypeReg:
 			// Make the directory. This is redundant because it should
 			// already be made by a directory entry in the tar
 			// beforehand. Thus, don't check for errors; the next
 			// write will fail with the same error.
-			dir := filepath.Dir(abs)
+			dir := filepath.Dir(path)
 			if !madeDir[dir] {
-				err := os.MkdirAll(filepath.Dir(abs), 0755)
+				err := os.MkdirAll(filepath.Dir(path), 0755)
 				if err != nil {
 					return err
 				}
 				madeDir[dir] = true
 			}
-			wf, err := os.OpenFile(abs, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
+			wf, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return err
 			}
@@ -201,30 +197,33 @@ func unpackTarGz(filename string) error {
 				err = closeErr
 			}
 			if err != nil {
-				return fmt.Errorf("error writing to %s: %v", abs, err)
+				return fmt.Errorf("error writing to %s: %v", path, err)
 			}
 			if n != header.Size {
-				return fmt.Errorf("only wrote %d bytes to %s; expected %d", n, abs, header.Size)
+				return fmt.Errorf("only wrote %d bytes to %s; expected %d", n, path, header.Size)
 			}
 		case tar.TypeDir:
-			err := os.MkdirAll(abs, 0755)
+			err := os.MkdirAll(path, 0755)
 			if err != nil {
 				return err
 			}
-			madeDir[abs] = true
+			madeDir[path] = true
 		case tar.TypeSymlink:
 			err := os.Symlink(header.Linkname, header.Name)
 			if err != nil {
 				return err
 			}
-
 		case tar.TypeXGlobalHeader:
 			// git archive generates these. Ignore them.
 		default:
-			return fmt.Errorf("tar file entry %s contained unsupported file type %v", header.Name, mode)
+			return fmt.Errorf("tar file entry %s contained unsupported file type %v, %b", header.Name, mode, header.Typeflag)
 		}
 	}
-	return nil
+	if err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
 }
 
 func init() {
