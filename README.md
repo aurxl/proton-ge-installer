@@ -1,5 +1,5 @@
 # Proton GE CLI Installer
-
+installs [proton-ge-custom](https://github.com/GloriousEggroll/proton-ge-custom)
 
 ## Usage
 
@@ -23,6 +23,10 @@ proton-ge-installer GE-Proton8-14
 ### installing to special steam dir
 ``` sh
 proton-ge-installer -v GE-Proton8-14 -d /home/neo/.steam
+```
+### force override existing install
+```
+proton-ge-installer -f latest
 ```
 
 ## install
