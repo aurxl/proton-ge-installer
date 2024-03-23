@@ -21,12 +21,14 @@ import (
 )
 
 const (
-	GHapi_url       = "https://api.github.com/"
-	GHreq           = "repos/GloriousEggroll/proton-ge-custom/releases/"
-	GHtags          = "tags/"
-	versionUsage    = "GE Version (release) to install"
-	steam_rootUsage = "steam root dir"
-	forceUsage      = "force to override already existing install"
+	GHapi_url           = "https://api.github.com/"
+	GHreq               = "repos/GloriousEggroll/proton-ge-custom/releases/"
+	GHtags              = "tags/"
+    default_steam_root  = "/.steam/"
+    comptools           = "root/compatibilitytools.d/"
+	versionUsage        = "GE Version (release) to install"
+	steam_rootUsage     = "steam root dir"
+	forceUsage          = "force to override already existing install"
 )
 
 var (
@@ -236,11 +238,11 @@ func init() {
 	}
 
 	flag.StringVar(&version, "version", "latest", versionUsage)
-	flag.StringVar(&version, "v", "latest", versionUsage+" - shorthand")
-	flag.StringVar(&steam_root, "steam_dir", user_home+"/.steam/", steam_rootUsage)
-	flag.StringVar(&steam_root, "d", user_home+"/.steam/", steam_rootUsage+" - shorthand")
+	flag.StringVar(&version, "v", "latest", versionUsage + " - shorthand")
+	flag.StringVar(&steam_root, "steam_dir", user_home + default_steam_root, steam_rootUsage)
+	flag.StringVar(&steam_root, "d", user_home + default_steam_root, steam_rootUsage + " - shorthand")
 	flag.BoolVar(&force, "force", false, forceUsage)
-	flag.BoolVar(&force, "f", false, forceUsage+" - shorthand")
+	flag.BoolVar(&force, "f", false, forceUsage + " - shorthand")
 
 	flag.Parse()
 
@@ -251,7 +253,9 @@ func init() {
 }
 
 func main() {
-	// checking if input is a valid release and get needed urls
+	comptools_dir := steam_root + comptools
+
+    // checking if input is a valid release and get needed urls
 	validVersion, urls, err := getValidRelease(version)
 	if err != nil {
 		log.Fatal(err)
@@ -260,7 +264,7 @@ func main() {
 	}
 
 	// check if file already exists
-	filePath := steam_root + "root/compatibilitytools.d/" + urls.Tag_name
+	filePath := comptools_dir + urls.Tag_name
 	_, err = os.Stat(filePath)
 	if err == nil && !force {
 		log.Printf("%s already is installed under %s", validVersion, filePath)
@@ -276,10 +280,19 @@ func main() {
 	}
 
 	// cd to install dir
-	err = os.Chdir(steam_root + "root/compatibilitytools.d")
-	if err != nil {
-		log.Fatal(err)
-	}
+    if _, err := os.Stat(comptools_dir); os.IsNotExist(err) {
+        err := os.Mkdir(comptools_dir, 0755)
+        if err != nil {
+            log.Fatal(err)
+        }
+        log.Printf("Created %s", comptools_dir)
+    }
+    current_dir, _ := os.Getwd()
+    err = os.Chdir(comptools_dir)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer os.Chdir(current_dir)
 
 	// searching indices
 	for i, url := range urls.Assets {
@@ -316,12 +329,6 @@ func main() {
 		log.Println("Checksums matching!")
 	} else {
 		log.Fatal(errors.New("checksums not matching"))
-	}
-
-	// Create dir compatabilitytools.d
-	err = os.Mkdir(steam_root+"root/compatibilitytools.d", 0755)
-	if !os.IsExist(err) {
-		log.Println(err)
 	}
 
 	// extract tar ball
