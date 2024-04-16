@@ -38,5 +38,5 @@ export PATH=$PATH:$HOME/go/bin
 
 then: 
 ``` sh
-go install github.com/aurxl/proton-ge-installer
+go install github.com/aurxl/proton-ge-installer@latest
 ```
