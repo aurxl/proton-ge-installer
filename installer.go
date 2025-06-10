@@ -24,8 +24,8 @@ const (
 	GHapi_url           = "https://api.github.com/"
 	GHreq               = "repos/GloriousEggroll/proton-ge-custom/releases/"
 	GHtags              = "tags/"
-    default_steam_root  = "/.steam/"
-    comptools           = "root/compatibilitytools.d/"
+	default_steam_root  = "/.steam/"
+	comptools           = "root/compatibilitytools.d/"
 	versionUsage        = "GE Version (release) to install"
 	steam_rootUsage     = "steam root dir"
 	forceUsage          = "force to override already existing install"
@@ -106,6 +106,7 @@ func downloadRelease(name string, url string) (string, error) {
 		kill <- true
 	}()
 
+	log.Println(url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -296,10 +297,11 @@ func main() {
 
 	// searching indices
 	for i, url := range urls.Assets {
-		if !strings.HasSuffix(url.Name, "sha512sum") {
-			dwl_index = i
-		} else {
+		if strings.HasSuffix(url.Name, "sha512sum") {
 			csm_index = i
+		}
+		if strings.HasSuffix(url.Name, ".tar.gz"){
+			dwl_index = i
 		}
 	}
 
